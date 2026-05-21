@@ -131,11 +131,49 @@ button:hover, .file-label:hover { transform: translateY(-1px); }
 .hero-actions, .export-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .file-label input { display: none; }
 
+
+.span-4 { grid-column: 1 / -1; }
+textarea { min-height: 88px; resize: vertical; }
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.photo-item {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 10px;
+  background: #fbfdff;
+  display: grid;
+  gap: 8px;
+}
+.photo-item img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+}
+.photo-caption {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+.photo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.notes-text {
+  white-space: pre-wrap;
+}
+
 .table-wrap { overflow-x: auto; border-radius: 16px; border: 1px solid var(--line); }
 .data-table {
   border-collapse: collapse;
   width: 100%;
-  min-width: 920px;
+  min-width: 1120px;
   background: #fff;
 }
 .data-table th, .data-table td {
@@ -245,8 +283,9 @@ footer {
       <p class="subtitle">Preencha os ambientes, calcule iluminação, TUGs, TUEs, cargas obtidas, potência ativa e sugestão de medidor.</p>
     </div>
     <div class="hero-actions no-print">
-      <button id="btnSample" class="secondary">Carregar exemplo das fotos</button>
-      <button id="btnSave" class="primary">Salvar no navegador</button>
+      <label class="file-label primary">Enviar fotos .jpg/.jpeg
+        <input id="referencePhotoInput" type="file" accept=".jpg,.jpeg,image/jpeg" multiple />
+      </label>
       <button id="btnPrint" class="secondary">Imprimir / PDF</button>
     </div>
   </header>
@@ -270,6 +309,9 @@ footer {
         <label>Tensão de referência
           <input id="projectVoltage" type="text" placeholder="Ex.: 127/220 V" />
         </label>
+        <label class="span-4">Observações do projeto
+          <textarea id="projectObservations" placeholder="Ex.: Projeto residencial didático baseado nas fotos e critérios informados pelo professor."></textarea>
+        </label>
       </div>
     </section>
 
@@ -277,10 +319,21 @@ footer {
       <strong>Atenção:</strong> este protótipo é para estudo e preenchimento de tabelas. As regras, fatores e limites de medidor podem variar conforme a norma adotada, professor e concessionária local. Não use como projeto executivo sem revisão de profissional habilitado.
     </section>
 
+    <section class="card" id="referencePhotosCard">
+      <div class="card-title row-title">
+        <div>
+          <h2>Fotos de referência</h2>
+          <p>Envie imagens .jpg/.jpeg para consultar enquanto preenche o projeto. Elas não preenchem campos automaticamente.</p>
+        </div>
+        <button id="btnClearPhotos" class="ghost no-print">Limpar fotos</button>
+      </div>
+      <div id="referencePhotosList" class="photo-grid"></div>
+    </section>
+
     <section class="card no-print">
       <div class="card-title row-title">
         <div>
-          <h2>Configurações de cálculo</h2>
+          <h2>Normas, fatores e limites do medidor</h2>
           <p>Valores editáveis para adaptar ao padrão pedido na sua atividade.</p>
         </div>
         <button id="btnResetConfig" class="ghost">Restaurar padrão</button>
@@ -300,6 +353,26 @@ footer {
         </label>
         <label>Bifásico até (W)
           <input id="limitBi" type="number" step="100" min="0" />
+        </label>
+        <label>Seleção de medidor
+          <select id="meterMode">
+            <option value="auto">Automático pelo limite</option>
+            <option value="mono">Monofásico</option>
+            <option value="bi">Bifásico</option>
+            <option value="tri">Trifásico</option>
+          </select>
+        </label>
+        <label>Norma / critério adotado
+          <input id="standardCriteria" type="text" placeholder="Ex.: NBR 5410 + critério da atividade" />
+        </label>
+        <label>Fornecimento
+          <input id="meterSupply" type="text" placeholder="Ex.: 2 fios, 3 fios ou 4 fios" />
+        </label>
+        <label>Tensão / observação
+          <input id="meterVoltageNote" type="text" placeholder="Ex.: 127/220 V — confirmar com concessionária" />
+        </label>
+        <label>Observações dos critérios
+          <textarea id="criteriaNotes" placeholder="Ex.: Limites e fatores ajustáveis conforme professor/concessionária."></textarea>
         </label>
       </div>
     </section>
@@ -326,6 +399,7 @@ footer {
               <th>Perímetro</th>
               <th>TUG mín.</th>
               <th>TUG previstas</th>
+              <th>Observações</th>
               <th>Ações</th>
             </tr>
           </thead>
@@ -390,16 +464,23 @@ footer {
   </footer>
 
   <template id="roomEmptyTemplate">
-    <tr><td colspan="11" class="empty">Nenhuma dependência cadastrada. Clique em “Adicionar dependência”.</td></tr>
+    <tr><td colspan="12" class="empty">Nenhuma dependência cadastrada. Clique em “Adicionar dependência”.</td></tr>
   </template>
 
   <script>
+const STORAGE_KEY = 'ibt-prototipo-v2-normas-fotos';
+
 const DEFAULT_CONFIG = {
   fpLighting: 1,
   fpTug: 0.8,
   fpTue: 1,
   limitMono: 12000,
   limitBi: 25000,
+  meterMode: 'auto',
+  standardCriteria: '',
+  meterSupply: '',
+  meterVoltageNote: '',
+  criteriaNotes: '',
 };
 
 const ROOM_TYPES = {
@@ -408,30 +489,44 @@ const ROOM_TYPES = {
   banheiro: 'Banheiro',
 };
 
-const sampleRooms = [
-  { nome: 'Área de serviço', tipo: 'cozinha', comprimento: 1.75, largura: 3.40, areaManual: 5.95, perimetroManual: 10.30, tugsPlanejadas: 3, tues: [ { desc: 'Máquina de lavar', potenciaW: 1000, qtd: 1 }, { desc: 'Tanque elétrico', potenciaW: 600, qtd: 1 } ] },
-  { nome: 'Cozinha', tipo: 'cozinha', comprimento: 3.05, largura: 3.75, areaManual: 11.43, perimetroManual: 13.60, tugsPlanejadas: 4, tues: [ { desc: 'Geladeira', potenciaW: 300, qtd: 1 }, { desc: 'Micro-ondas', potenciaW: 1200, qtd: 1 }, { desc: 'Forno elétrico', potenciaW: 1500, qtd: 1 }, { desc: 'Purificador', potenciaW: 100, qtd: 1 } ] },
-  { nome: 'Dormitório 2', tipo: 'geral', comprimento: 3.05, largura: 4.10, areaManual: 12.71, perimetroManual: 13.10, tugsPlanejadas: 3, tues: [ { desc: 'Ar-condicionado', potenciaW: 1200, qtd: 1 } ] },
-  { nome: 'Banheiro', tipo: 'banheiro', comprimento: 1.80, largura: 2.30, areaManual: 4.14, perimetroManual: 8.20, tugsPlanejadas: 1, tues: [ { desc: 'Chuveiro elétrico', potenciaW: 5500, qtd: 1 } ] },
-  { nome: 'Copa', tipo: 'cozinha', comprimento: 3.10, largura: 3.05, areaManual: 9.45, perimetroManual: 12.30, tugsPlanejadas: 4, tues: [] },
-  { nome: 'Dormitório 1', tipo: 'geral', comprimento: 3.05, largura: 3.40, areaManual: 11.05, perimetroManual: 13.30, tugsPlanejadas: 3, tues: [ { desc: 'Ar-condicionado', potenciaW: 1200, qtd: 1 } ] },
-  { nome: 'Sala', tipo: 'geral', comprimento: 3.05, largura: 3.25, areaManual: 9.91, perimetroManual: 12.60, tugsPlanejadas: 3, tues: [ { desc: 'TV', potenciaW: 150, qtd: 1 }, { desc: 'Ventilador', potenciaW: 150, qtd: 1 } ] },
-  { nome: 'Corredor', tipo: 'geral', comprimento: 1.90, largura: 2.50, areaManual: 4.76, perimetroManual: 5.50, tugsPlanejadas: 1, tues: [] },
-];
+const ROOM_PLACEHOLDERS = {
+  nome: 'Ex.: Área de serviço, Cozinha, Dormitório, Banheiro...',
+  comprimento: 'Ex.: 3,05',
+  largura: 'Ex.: 3,40',
+  areaManual: 'Ex.: 11,43',
+  perimetroManual: 'Ex.: 13,60',
+  tugsPlanejadas: 'Ex.: 3',
+  observacoes: 'Ex.: Critério usado para este ambiente'
+};
+
+const METER_OPTIONS = {
+  auto: 'Automático pelo limite',
+  mono: 'Monofásico',
+  bi: 'Bifásico',
+  tri: 'Trifásico',
+};
 
 let state = loadState() || {
   project: {
     name: '',
     className: '',
-    date: new Date().toISOString().slice(0, 10),
-    voltage: '127/220 V',
+    date: '',
+    voltage: '',
+    observations: '',
   },
   config: { ...DEFAULT_CONFIG },
   rooms: [],
+  referencePhotos: [],
 };
 
 function uid() {
   return crypto?.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function numOrBlank(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const parsed = parseNum(value);
+  return Number.isFinite(parsed) ? parsed : '';
 }
 
 function withIds(room) {
@@ -439,34 +534,49 @@ function withIds(room) {
     id: room.id || uid(),
     nome: room.nome || '',
     tipo: room.tipo || 'geral',
-    comprimento: Number(room.comprimento) || 0,
-    largura: Number(room.largura) || 0,
-    areaManual: Number(room.areaManual) || 0,
-    perimetroManual: Number(room.perimetroManual) || 0,
-    tugsPlanejadas: Number(room.tugsPlanejadas) || 0,
-    tues: (room.tues || []).map(t => ({ id: t.id || uid(), desc: t.desc || '', potenciaW: Number(t.potenciaW) || 0, qtd: Number(t.qtd) || 1 })),
+    comprimento: numOrBlank(room.comprimento),
+    largura: numOrBlank(room.largura),
+    areaManual: numOrBlank(room.areaManual),
+    perimetroManual: numOrBlank(room.perimetroManual),
+    tugsPlanejadas: numOrBlank(room.tugsPlanejadas),
+    observacoes: room.observacoes || '',
+    tues: (room.tues || []).map(t => ({
+      id: t.id || uid(),
+      desc: t.desc || '',
+      potenciaW: numOrBlank(t.potenciaW),
+      qtd: t.qtd === undefined || t.qtd === null || t.qtd === '' ? 1 : numOrBlank(t.qtd),
+    })),
   };
 }
 
 function normalizeState() {
   state.config = { ...DEFAULT_CONFIG, ...(state.config || {}) };
-  state.project = { name: '', className: '', date: '', voltage: '127/220 V', ...(state.project || {}) };
+  state.project = { name: '', className: '', date: '', voltage: '', observations: '', ...(state.project || {}) };
   state.rooms = (state.rooms || []).map(withIds);
+  state.referencePhotos = (state.referencePhotos || []).filter(photo => photo && photo.src).map(photo => ({
+    id: photo.id || uid(),
+    name: photo.name || 'foto-referencia.jpg',
+    src: photo.src,
+  }));
 }
 normalizeState();
 
 function loadState() {
   try {
-    const raw = localStorage.getItem('ibt-prototipo-v1');
+    const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
   }
 }
 
-function saveState(silent = false) {
-  localStorage.setItem('ibt-prototipo-v1', JSON.stringify(state));
-  if (!silent) alert('Projeto salvo no navegador.');
+function saveState(silent = true) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!silent) alert('Projeto salvo no navegador.');
+  } catch {
+    if (!silent) alert('Não foi possível salvar no navegador. As fotos podem estar grandes demais.');
+  }
 }
 
 function n(value, decimals = 2) {
@@ -484,11 +594,17 @@ function parseNum(value) {
 }
 
 function getArea(room) {
-  return room.areaManual > 0 ? room.areaManual : room.comprimento * room.largura;
+  const manual = parseNum(room.areaManual);
+  if (manual > 0) return manual;
+  return parseNum(room.comprimento) * parseNum(room.largura);
 }
 
 function getPerimeter(room) {
-  return room.perimetroManual > 0 ? room.perimetroManual : 2 * (room.comprimento + room.largura);
+  const manual = parseNum(room.perimetroManual);
+  if (manual > 0) return manual;
+  const comprimento = parseNum(room.comprimento);
+  const largura = parseNum(room.largura);
+  return 2 * (comprimento + largura);
 }
 
 function calcLightingVA(area) {
@@ -509,7 +625,7 @@ function calcMinTugs(room) {
 
 function getPlannedTugs(room) {
   const min = calcMinTugs(room);
-  return Math.max(Number(room.tugsPlanejadas) || 0, min);
+  return Math.max(parseNum(room.tugsPlanejadas), min);
 }
 
 function calcTugVA(room) {
@@ -522,19 +638,19 @@ function calcTugVA(room) {
 }
 
 function calcTueCount(room) {
-  return (room.tues || []).reduce((sum, item) => sum + (Number(item.qtd) || 0), 0);
+  return (room.tues || []).reduce((sum, item) => sum + parseNum(item.qtd), 0);
 }
 
 function calcTuePowerW(room) {
-  return (room.tues || []).reduce((sum, item) => sum + (Number(item.qtd) || 0) * (Number(item.potenciaW) || 0), 0);
+  return (room.tues || []).reduce((sum, item) => sum + parseNum(item.qtd) * parseNum(item.potenciaW), 0);
 }
 
 function calcTueDescription(room) {
   if (!room.tues || room.tues.length === 0) return '—';
-  return room.tues
-    .filter(t => t.desc || t.potenciaW)
-    .map(t => `${t.qtd || 1}x ${t.desc || 'TUE'} (${ni(t.potenciaW)} W)`)
-    .join('; ');
+  const items = room.tues
+    .filter(t => t.desc || parseNum(t.potenciaW))
+    .map(t => `${parseNum(t.qtd) || 1}x ${t.desc || 'TUE'} (${ni(t.potenciaW)} W)`);
+  return items.length ? items.join('; ') : '—';
 }
 
 function totals() {
@@ -561,12 +677,30 @@ function totals() {
   };
 }
 
+function defaultSupplyForMeter(tipo) {
+  if (tipo === 'Monofásico') return '2 fios';
+  if (tipo === 'Bifásico') return '3 fios';
+  return '4 fios';
+}
+
 function suggestMeter(activeW) {
   const mono = Number(state.config.limitMono) || DEFAULT_CONFIG.limitMono;
   const bi = Number(state.config.limitBi) || DEFAULT_CONFIG.limitBi;
-  if (activeW <= mono) return { tipo: 'Monofásico', fornecimento: '2 fios', tensao: state.project.voltage || '127/220 V' };
-  if (activeW <= bi) return { tipo: 'Bifásico', fornecimento: '3 fios', tensao: state.project.voltage || '127/220 V' };
-  return { tipo: 'Trifásico', fornecimento: '4 fios', tensao: state.project.voltage || '127/220 V' };
+  const selected = state.config.meterMode || 'auto';
+  let tipo = 'Trifásico';
+
+  if (selected === 'mono') tipo = 'Monofásico';
+  else if (selected === 'bi') tipo = 'Bifásico';
+  else if (selected === 'tri') tipo = 'Trifásico';
+  else if (activeW <= mono) tipo = 'Monofásico';
+  else if (activeW <= bi) tipo = 'Bifásico';
+
+  return {
+    tipo,
+    criterio: selected === 'auto' ? 'Automático pelo limite' : 'Selecionado manualmente',
+    fornecimento: state.config.meterSupply || defaultSupplyForMeter(tipo),
+    tensao: state.config.meterVoltageNote || state.project.voltage || '—',
+  };
 }
 
 function el(tag, attrs = {}, children = []) {
@@ -587,12 +721,19 @@ function bindProjectAndConfig() {
     projectClass: ['project', 'className'],
     projectDate: ['project', 'date'],
     projectVoltage: ['project', 'voltage'],
+    projectObservations: ['project', 'observations'],
     fpLighting: ['config', 'fpLighting'],
     fpTug: ['config', 'fpTug'],
     fpTue: ['config', 'fpTue'],
     limitMono: ['config', 'limitMono'],
     limitBi: ['config', 'limitBi'],
+    meterMode: ['config', 'meterMode'],
+    standardCriteria: ['config', 'standardCriteria'],
+    meterSupply: ['config', 'meterSupply'],
+    meterVoltageNote: ['config', 'meterVoltageNote'],
+    criteriaNotes: ['config', 'criteriaNotes'],
   };
+
   Object.entries(ids).forEach(([id, path]) => {
     const input = document.getElementById(id);
     input.value = state[path[0]][path[1]] ?? '';
@@ -605,6 +746,69 @@ function bindProjectAndConfig() {
   });
 }
 
+function renderReferencePhotos() {
+  const container = document.getElementById('referencePhotosList');
+  const clearButton = document.getElementById('btnClearPhotos');
+  container.innerHTML = '';
+  clearButton.style.display = state.referencePhotos.length ? 'inline-flex' : 'none';
+
+  if (!state.referencePhotos.length) {
+    container.append(el('p', { class: 'empty', text: 'Nenhuma foto enviada. Use o botão “Enviar fotos .jpg/.jpeg”.' }));
+    return;
+  }
+
+  state.referencePhotos.forEach(photo => {
+    container.append(el('article', { class: 'photo-item' }, [
+      el('img', { src: photo.src, alt: photo.name }),
+      el('div', { class: 'photo-caption', text: photo.name }),
+      el('div', { class: 'photo-actions no-print' }, [
+        el('button', { class: 'danger', onclick: () => removeReferencePhoto(photo.id) }, ['Remover'])
+      ])
+    ]));
+  });
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve({ id: uid(), name: file.name, src: reader.result });
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+async function handleReferencePhotos(event) {
+  const files = Array.from(event.target.files || []).filter(file => /\.(jpe?g)$/i.test(file.name) || file.type === 'image/jpeg');
+  if (!files.length) {
+    event.target.value = '';
+    return;
+  }
+  try {
+    const photos = await Promise.all(files.map(readFileAsDataUrl));
+    state.referencePhotos.push(...photos);
+    saveState(true);
+    renderReferencePhotos();
+  } catch {
+    alert('Não foi possível carregar uma ou mais fotos.');
+  } finally {
+    event.target.value = '';
+  }
+}
+
+function removeReferencePhoto(id) {
+  state.referencePhotos = state.referencePhotos.filter(photo => photo.id !== id);
+  saveState(true);
+  renderReferencePhotos();
+}
+
+function clearReferencePhotos() {
+  if (!state.referencePhotos.length) return;
+  if (!confirm('Remover todas as fotos de referência?')) return;
+  state.referencePhotos = [];
+  saveState(true);
+  renderReferencePhotos();
+}
+
 function renderRooms() {
   const tbody = document.getElementById('roomsBody');
   tbody.innerHTML = '';
@@ -615,16 +819,17 @@ function renderRooms() {
   state.rooms.forEach((room, index) => {
     const tr = el('tr');
     tr.append(
-      tdInput(room, 'nome', 'text', 'Ex.: Sala'),
+      tdInput(room, 'nome', 'text', ROOM_PLACEHOLDERS.nome),
       tdSelect(room, 'tipo', ROOM_TYPES),
-      tdInput(room, 'comprimento', 'number', '', '0.01'),
-      tdInput(room, 'largura', 'number', '', '0.01'),
-      tdInput(room, 'areaManual', 'number', '', '0.01'),
-      tdInput(room, 'perimetroManual', 'number', '', '0.01'),
+      tdInput(room, 'comprimento', 'number', ROOM_PLACEHOLDERS.comprimento, '0.01'),
+      tdInput(room, 'largura', 'number', ROOM_PLACEHOLDERS.largura, '0.01'),
+      tdInput(room, 'areaManual', 'number', ROOM_PLACEHOLDERS.areaManual, '0.01'),
+      tdInput(room, 'perimetroManual', 'number', ROOM_PLACEHOLDERS.perimetroManual, '0.01'),
       el('td', { class: 'number', text: n(getArea(room)) }),
       el('td', { class: 'number', text: n(getPerimeter(room)) }),
       el('td', { class: 'number', text: String(calcMinTugs(room)) }),
-      tdInput(room, 'tugsPlanejadas', 'number', '', '1'),
+      tdInput(room, 'tugsPlanejadas', 'number', ROOM_PLACEHOLDERS.tugsPlanejadas, '1'),
+      tdInput(room, 'observacoes', 'text', ROOM_PLACEHOLDERS.observacoes),
       el('td', {}, [
         el('div', { class: 'hero-actions' }, [
           el('button', { class: 'ghost', onclick: () => moveRoom(index, -1), title: 'Subir' }, ['↑']),
@@ -642,9 +847,9 @@ function tdInput(room, field, type, placeholder = '', step = '') {
   if (step) input.step = step;
   if (type === 'number') input.min = '0';
   input.addEventListener('change', () => {
-    room[field] = type === 'number' ? parseNum(input.value) : input.value;
+    room[field] = type === 'number' ? numOrBlank(input.value) : input.value;
     if (field === 'tipo' || field === 'areaManual' || field === 'perimetroManual' || field === 'comprimento' || field === 'largura') {
-      room.tugsPlanejadas = Math.max(Number(room.tugsPlanejadas) || 0, calcMinTugs(room));
+      room.tugsPlanejadas = Math.max(parseNum(room.tugsPlanejadas), calcMinTugs(room)) || '';
     }
     saveState(true);
     renderAll(false);
@@ -661,7 +866,7 @@ function tdSelect(room, field, options) {
   });
   select.addEventListener('change', () => {
     room[field] = select.value;
-    room.tugsPlanejadas = Math.max(Number(room.tugsPlanejadas) || 0, calcMinTugs(room));
+    room.tugsPlanejadas = Math.max(parseNum(room.tugsPlanejadas), calcMinTugs(room)) || '';
     saveState(true);
     renderAll(false);
   });
@@ -693,15 +898,15 @@ function renderTueEditors() {
         const tr = el('tr');
         const desc = el('input', { type: 'text', value: item.desc || '', placeholder: 'Ex.: Chuveiro elétrico' });
         desc.addEventListener('change', () => { item.desc = desc.value; saveState(true); renderAll(false); });
-        const p = el('input', { type: 'number', value: item.potenciaW || 0, min: '0', step: '10' });
-        p.addEventListener('change', () => { item.potenciaW = parseNum(p.value); saveState(true); renderAll(false); });
-        const q = el('input', { type: 'number', value: item.qtd || 1, min: '0', step: '1' });
-        q.addEventListener('change', () => { item.qtd = parseNum(q.value); saveState(true); renderAll(false); });
+        const p = el('input', { type: 'number', value: item.potenciaW ?? '', min: '0', step: '10', placeholder: 'Ex.: 5500' });
+        p.addEventListener('change', () => { item.potenciaW = numOrBlank(p.value); saveState(true); renderAll(false); });
+        const q = el('input', { type: 'number', value: item.qtd ?? 1, min: '0', step: '1' });
+        q.addEventListener('change', () => { item.qtd = numOrBlank(q.value); saveState(true); renderAll(false); });
         tr.append(
           el('td', {}, [desc]),
           el('td', {}, [p]),
           el('td', {}, [q]),
-          el('td', { class: 'number', text: ni((item.potenciaW || 0) * (item.qtd || 0)) }),
+          el('td', { class: 'number', text: ni(parseNum(item.potenciaW) * parseNum(item.qtd)) }),
           el('td', {}, [el('button', { class: 'danger', onclick: () => removeTue(room.id, item.id) }, ['Excluir'])])
         );
         tbody.append(tr);
@@ -723,7 +928,7 @@ function moveRoom(index, direction) {
 }
 
 function addRoom() {
-  const room = withIds({ nome: `Dependência ${state.rooms.length + 1}`, tipo: 'geral', comprimento: 0, largura: 0, tugsPlanejadas: 1, tues: [] });
+  const room = withIds({ nome: '', tipo: 'geral', tues: [] });
   state.rooms.push(room);
   saveState(true);
   renderAll(false);
@@ -739,7 +944,7 @@ function removeRoom(id) {
 function addTue(roomId) {
   const room = state.rooms.find(r => r.id === roomId);
   if (!room) return;
-  room.tues.push({ id: uid(), desc: 'Novo TUE', potenciaW: 0, qtd: 1 });
+  room.tues.push({ id: uid(), desc: '', potenciaW: '', qtd: 1 });
   saveState(true);
   renderAll(false);
 }
@@ -773,46 +978,48 @@ function renderTable(tableId, headers, rows, footerRows = []) {
 
 function renderResultTables() {
   renderTable('tableLighting',
-    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Potência de iluminação (VA)'],
-    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r)))]),
-    [['TOTAL', '', '', ni(totals().lightingVA)]]
+    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Potência de iluminação (VA)', 'Observações'],
+    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), r.observacoes || '—']),
+    [['TOTAL', '', '', ni(totals().lightingVA), '']]
   );
 
   renderTable('tableMin',
-    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Quantidade mínima TUGs', 'Quantidade TUEs'],
-    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), calcMinTugs(r), calcTueCount(r)]),
-    [['TOTAL', '', '', state.rooms.reduce((s, r) => s + calcMinTugs(r), 0), state.rooms.reduce((s, r) => s + calcTueCount(r), 0)]]
+    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Quantidade mínima TUGs', 'Quantidade TUEs', 'Observações'],
+    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), calcMinTugs(r), calcTueCount(r), r.observacoes || '—']),
+    [['TOTAL', '', '', state.rooms.reduce((s, r) => s + calcMinTugs(r), 0), state.rooms.reduce((s, r) => s + calcTueCount(r), 0), '']]
   );
 
   renderTable('tablePrediction',
-    ['Dependência', 'TUGs previstas', 'Carga TUGs (VA)', 'TUEs previstas', 'Potência TUEs (W)'],
-    state.rooms.map(r => [r.nome || '—', getPlannedTugs(r), ni(calcTugVA(r)), calcTueCount(r), ni(calcTuePowerW(r))]),
-    [['TOTAL', state.rooms.reduce((s, r) => s + getPlannedTugs(r), 0), ni(totals().tugVA), state.rooms.reduce((s, r) => s + calcTueCount(r), 0), ni(totals().tueW)]]
+    ['Dependência', 'TUGs previstas', 'Carga TUGs (VA)', 'TUEs previstas', 'Potência TUEs (W)', 'Observações'],
+    state.rooms.map(r => [r.nome || '—', getPlannedTugs(r), ni(calcTugVA(r)), calcTueCount(r), ni(calcTuePowerW(r)), r.observacoes || '—']),
+    [['TOTAL', state.rooms.reduce((s, r) => s + getPlannedTugs(r), 0), ni(totals().tugVA), state.rooms.reduce((s, r) => s + calcTueCount(r), 0), ni(totals().tueW), '']]
   );
 
   renderTable('tableObtained',
-    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Iluminação (VA)', 'Quant. TUGs', 'Potência TUGs (VA)', 'Discriminação TUEs', 'Potência TUEs (W)'],
-    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), getPlannedTugs(r), ni(calcTugVA(r)), calcTueDescription(r), ni(calcTuePowerW(r))]),
-    [['TOTAL', '', '', ni(totals().lightingVA), state.rooms.reduce((s, r) => s + getPlannedTugs(r), 0), ni(totals().tugVA), '', ni(totals().tueW)]]
+    ['Dependência', 'Área (m²)', 'Perímetro (m)', 'Iluminação (VA)', 'Quant. TUGs', 'Potência TUGs (VA)', 'Discriminação TUEs', 'Potência TUEs (W)', 'Observações'],
+    state.rooms.map(r => [r.nome || '—', n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), getPlannedTugs(r), ni(calcTugVA(r)), calcTueDescription(r), ni(calcTuePowerW(r)), r.observacoes || '—']),
+    [['TOTAL', '', '', ni(totals().lightingVA), state.rooms.reduce((s, r) => s + getPlannedTugs(r), 0), ni(totals().tugVA), '', ni(totals().tueW), '']]
   );
 
   const total = totals();
   const meter = suggestMeter(total.totalActive);
   renderTable('tableActive',
-    ['Cargas', 'Potência aparente (VA)', 'Fator de potência', 'Potência ativa (W)'],
+    ['Cargas', 'Potência aparente (VA)', 'Fator de potência / critério', 'Potência ativa (W) / observação'],
     [
       ['Iluminação', ni(total.lightingVA), n(state.config.fpLighting), ni(total.activeLighting)],
       ['TUGs', ni(total.tugVA), n(state.config.fpTug), ni(total.activeTug)],
       ['TUEs', ni(total.apparentTue), n(state.config.fpTue), ni(total.activeTue)],
       ['TOTAL', ni(total.totalApparent), '—', ni(total.totalActive)],
-      ['Tipo de medidor', meter.tipo, 'Fornecimento', meter.fornecimento],
-      ['Tensão', meter.tensao, 'Potência ativa total medidor', `${ni(total.totalActive)} W`],
+      ['Tipo de medidor', meter.tipo, meter.criterio, `Fornecimento: ${meter.fornecimento}`],
+      ['Tensão / observação', meter.tensao, 'Norma / critério adotado', state.config.standardCriteria || '—'],
+      ['Observações dos critérios', state.config.criteriaNotes || '—', 'Observações do projeto', state.project.observations || '—'],
     ]
   );
 }
 
 function renderAll(syncInputs = true) {
   if (syncInputs) bindProjectAndConfig();
+  renderReferencePhotos();
   renderRooms();
   renderTueEditors();
   renderResultTables();
@@ -843,12 +1050,21 @@ function buildCsv() {
     rows.forEach(r => sections.push(r));
     sections.push([]);
   };
-  addSection('Tabela 01 - Iluminacao', ['Dependencia', 'Area m2', 'Perimetro m', 'Iluminacao VA'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r)))]));
-  addSection('Tabela 02 - TUGs e TUEs minimas', ['Dependencia', 'Area m2', 'Perimetro m', 'TUG min', 'TUEs'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), calcMinTugs(r), calcTueCount(r)]));
-  addSection('Tabela 03 - Previsao', ['Dependencia', 'TUGs', 'TUGs VA', 'TUEs', 'TUEs W'], state.rooms.map(r => [r.nome, getPlannedTugs(r), ni(calcTugVA(r)), calcTueCount(r), ni(calcTuePowerW(r))]));
-  addSection('Tabela 04 - Cargas obtidas', ['Dependencia', 'Area m2', 'Perimetro m', 'Iluminacao VA', 'TUGs', 'TUGs VA', 'TUEs', 'TUEs W'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), getPlannedTugs(r), ni(calcTugVA(r)), calcTueDescription(r), ni(calcTuePowerW(r))]));
+  addSection('Normas, fatores e limites do medidor', ['Campo', 'Valor'], [
+    ['Norma / criterio adotado', state.config.standardCriteria || ''],
+    ['Selecao de medidor', METER_OPTIONS[state.config.meterMode] || METER_OPTIONS.auto],
+    ['Fornecimento', state.config.meterSupply || ''],
+    ['Tensao / observacao', state.config.meterVoltageNote || state.project.voltage || ''],
+    ['Observacoes dos criterios', state.config.criteriaNotes || ''],
+    ['Observacoes do projeto', state.project.observations || ''],
+  ]);
+  addSection('Tabela 01 - Iluminacao', ['Dependencia', 'Area m2', 'Perimetro m', 'Iluminacao VA', 'Observacoes'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), r.observacoes || '']));
+  addSection('Tabela 02 - TUGs e TUEs minimas', ['Dependencia', 'Area m2', 'Perimetro m', 'TUG min', 'TUEs', 'Observacoes'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), calcMinTugs(r), calcTueCount(r), r.observacoes || '']));
+  addSection('Tabela 03 - Previsao', ['Dependencia', 'TUGs', 'TUGs VA', 'TUEs', 'TUEs W', 'Observacoes'], state.rooms.map(r => [r.nome, getPlannedTugs(r), ni(calcTugVA(r)), calcTueCount(r), ni(calcTuePowerW(r)), r.observacoes || '']));
+  addSection('Tabela 04 - Cargas obtidas', ['Dependencia', 'Area m2', 'Perimetro m', 'Iluminacao VA', 'TUGs', 'TUGs VA', 'TUEs', 'TUEs W', 'Observacoes'], state.rooms.map(r => [r.nome, n(getArea(r)), n(getPerimeter(r)), ni(calcLightingVA(getArea(r))), getPlannedTugs(r), ni(calcTugVA(r)), calcTueDescription(r), ni(calcTuePowerW(r)), r.observacoes || '']));
   const t = totals();
-  addSection('Tabela 05 - Potencia ativa', ['Carga', 'Pot aparente VA', 'FP', 'Pot ativa W'], [['Iluminacao', ni(t.lightingVA), n(state.config.fpLighting), ni(t.activeLighting)], ['TUGs', ni(t.tugVA), n(state.config.fpTug), ni(t.activeTug)], ['TUEs', ni(t.apparentTue), n(state.config.fpTue), ni(t.activeTue)], ['TOTAL', ni(t.totalApparent), '', ni(t.totalActive)]]);
+  const meter = suggestMeter(t.totalActive);
+  addSection('Tabela 05 - Potencia ativa', ['Carga', 'Pot aparente VA', 'FP / criterio', 'Pot ativa W / observacao'], [['Iluminacao', ni(t.lightingVA), n(state.config.fpLighting), ni(t.activeLighting)], ['TUGs', ni(t.tugVA), n(state.config.fpTug), ni(t.activeTug)], ['TUEs', ni(t.apparentTue), n(state.config.fpTue), ni(t.activeTue)], ['TOTAL', ni(t.totalApparent), '', ni(t.totalActive)], ['Tipo de medidor', meter.tipo, meter.criterio, meter.fornecimento], ['Tensao / observacao', meter.tensao, 'Norma / criterio', state.config.standardCriteria || '']]);
   return sections.map(row => row.map(csvEscape).join(';')).join('\n');
 }
 
@@ -856,28 +1072,30 @@ function buildMarkdown() {
   const total = totals();
   const meter = suggestMeter(total.totalActive);
   return `# Instalações Elétricas de Baixa Tensão\n\n` +
-    `**Nome:** ${state.project.name || '-'}  \n**Turma:** ${state.project.className || '-'}  \n**Data:** ${state.project.date || '-'}  \n\n` +
+    `**Nome:** ${state.project.name || '-'}  \n**Turma:** ${state.project.className || '-'}  \n**Data:** ${state.project.date || '-'}  \n**Tensão de referência:** ${state.project.voltage || '-'}  \n\n` +
+    `## Normas, fatores e limites do medidor\n\n` +
+    `- Norma / critério adotado: ${state.config.standardCriteria || '-'}\n` +
+    `- Seleção de medidor: ${METER_OPTIONS[state.config.meterMode] || METER_OPTIONS.auto}\n` +
+    `- Fornecimento: ${meter.fornecimento}\n` +
+    `- Tensão / observação: ${meter.tensao}\n` +
+    `- Observações dos critérios: ${state.config.criteriaNotes || '-'}\n` +
+    `- Observações do projeto: ${state.project.observations || '-'}\n\n` +
     `## Resumo\n\n` +
     `- Iluminação: ${ni(total.lightingVA)} VA / ${ni(total.activeLighting)} W\n` +
     `- TUGs: ${ni(total.tugVA)} VA / ${ni(total.activeTug)} W\n` +
     `- TUEs: ${ni(total.apparentTue)} VA / ${ni(total.activeTue)} W\n` +
     `- Potência ativa total: ${ni(total.totalActive)} W\n` +
-    `- Medidor sugerido: ${meter.tipo} (${meter.fornecimento}) — ${meter.tensao}\n\n` +
+    `- Medidor: ${meter.tipo} (${meter.criterio}) — ${meter.fornecimento} — ${meter.tensao}\n\n` +
     `> Protótipo didático; revisar regras, fatores e limites conforme orientação do professor/concessionária.\n`;
 }
 
 function initButtons() {
   document.getElementById('btnAddRoom').onclick = addRoom;
-  document.getElementById('btnSave').onclick = () => saveState(false);
   document.getElementById('btnPrint').onclick = () => window.print();
+  document.getElementById('referencePhotoInput').onchange = handleReferencePhotos;
+  document.getElementById('btnClearPhotos').onclick = clearReferencePhotos;
   document.getElementById('btnResetConfig').onclick = () => {
     state.config = { ...DEFAULT_CONFIG };
-    saveState(true);
-    renderAll(true);
-  };
-  document.getElementById('btnSample').onclick = () => {
-    if (state.rooms.length && !confirm('Substituir as dependências atuais pelo exemplo das fotos?')) return;
-    state.rooms = sampleRooms.map(withIds);
     saveState(true);
     renderAll(true);
   };
