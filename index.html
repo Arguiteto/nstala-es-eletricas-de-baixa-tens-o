@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Protótipo | Instalações Elétricas de Baixa Tensão</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div>
+      <p class="eyebrow">Ferramenta didática</p>
+      <h1>Instalações Elétricas de Baixa Tensão</h1>
+      <p class="subtitle">Preencha os ambientes, calcule iluminação, TUGs, TUEs, cargas obtidas, potência ativa e sugestão de medidor.</p>
+    </div>
+    <div class="hero-actions no-print">
+      <button id="btnSample" class="secondary">Carregar exemplo das fotos</button>
+      <button id="btnSave" class="primary">Salvar no navegador</button>
+      <button id="btnPrint" class="secondary">Imprimir / PDF</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card project-card">
+      <div class="card-title">
+        <h2>Dados do projeto</h2>
+        <p>Use estes campos como cabeçalho das tabelas da atividade.</p>
+      </div>
+      <div class="grid fields-4">
+        <label>Nome
+          <input id="projectName" type="text" placeholder="Ex.: Itifânio Pereira" />
+        </label>
+        <label>Turma
+          <input id="projectClass" type="text" placeholder="Ex.: 2º ano" />
+        </label>
+        <label>Data
+          <input id="projectDate" type="date" />
+        </label>
+        <label>Tensão de referência
+          <input id="projectVoltage" type="text" placeholder="Ex.: 127/220 V" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card warning">
+      <strong>Atenção:</strong> este protótipo é para estudo e preenchimento de tabelas. As regras, fatores e limites de medidor podem variar conforme a norma adotada, professor e concessionária local. Não use como projeto executivo sem revisão de profissional habilitado.
+    </section>
+
+    <section class="card no-print">
+      <div class="card-title row-title">
+        <div>
+          <h2>Configurações de cálculo</h2>
+          <p>Valores editáveis para adaptar ao padrão pedido na sua atividade.</p>
+        </div>
+        <button id="btnResetConfig" class="ghost">Restaurar padrão</button>
+      </div>
+      <div class="grid fields-5">
+        <label>FP iluminação
+          <input id="fpLighting" type="number" step="0.01" min="0.1" max="1" />
+        </label>
+        <label>FP TUGs
+          <input id="fpTug" type="number" step="0.01" min="0.1" max="1" />
+        </label>
+        <label>FP TUEs
+          <input id="fpTue" type="number" step="0.01" min="0.1" max="1" />
+        </label>
+        <label>Monofásico até (W)
+          <input id="limitMono" type="number" step="100" min="0" />
+        </label>
+        <label>Bifásico até (W)
+          <input id="limitBi" type="number" step="100" min="0" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card no-print">
+      <div class="card-title row-title">
+        <div>
+          <h2>Ambientes / dependências</h2>
+          <p>Informe medidas ou área/perímetro manual. A ferramenta calcula as tabelas automaticamente.</p>
+        </div>
+        <button id="btnAddRoom" class="primary">+ Adicionar dependência</button>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table editable" id="roomsTable">
+          <thead>
+            <tr>
+              <th>Dependência</th>
+              <th>Regra</th>
+              <th>Comp. (m)</th>
+              <th>Larg. (m)</th>
+              <th>Área manual</th>
+              <th>Perímetro manual</th>
+              <th>Área</th>
+              <th>Perímetro</th>
+              <th>TUG mín.</th>
+              <th>TUG previstas</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="roomsBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card no-print" id="tueEditorCard">
+      <div class="card-title">
+        <h2>TUEs por dependência</h2>
+        <p>Cadastre equipamentos de uso específico, como chuveiro, ar-condicionado, forno, máquina de lavar etc.</p>
+      </div>
+      <div id="tueEditors" class="tue-editors"></div>
+    </section>
+
+    <section class="card results">
+      <div class="card-title row-title">
+        <div>
+          <h2>Resultados para as atividades</h2>
+          <p>As tabelas abaixo seguem a lógica das folhas das fotos.</p>
+        </div>
+        <div class="no-print export-actions">
+          <button id="btnCsv" class="secondary">Baixar CSV</button>
+          <button id="btnJson" class="secondary">Exportar JSON</button>
+          <label class="file-label secondary">Importar JSON
+            <input id="importJson" type="file" accept="application/json" />
+          </label>
+          <button id="btnMarkdown" class="secondary">Copiar resumo</button>
+        </div>
+      </div>
+
+      <details open>
+        <summary>Tabela 01 — Prevendo a carga de iluminação</summary>
+        <div class="table-wrap"><table class="data-table" id="tableLighting"></table></div>
+      </details>
+
+      <details open>
+        <summary>Tabela 02 — Quantidade mínima de TUGs e TUEs</summary>
+        <div class="table-wrap"><table class="data-table" id="tableMin"></table></div>
+      </details>
+
+      <details open>
+        <summary>Tabela 03 — Previsão das cargas de TUG e TUE</summary>
+        <div class="table-wrap"><table class="data-table" id="tablePrediction"></table></div>
+      </details>
+
+      <details open>
+        <summary>Tabela 04 — Cargas obtidas</summary>
+        <div class="table-wrap"><table class="data-table" id="tableObtained"></table></div>
+      </details>
+
+      <details open>
+        <summary>Tabela 05 — Cálculo da potência ativa / medidor</summary>
+        <div class="table-wrap"><table class="data-table" id="tableActive"></table></div>
+      </details>
+    </section>
+  </main>
+
+  <footer>
+    Protótipo estático para GitHub Pages — HTML, CSS e JavaScript puro.
+  </footer>
+
+  <template id="roomEmptyTemplate">
+    <tr><td colspan="11" class="empty">Nenhuma dependência cadastrada. Clique em “Adicionar dependência”.</td></tr>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
